@@ -9,6 +9,7 @@ import {
   validateHeaderName,
   validateHeaderValue,
 } from "node:http";
+import * as http from "node:http";
 import { createTest } from "node-harness";
 import url from "node:url";
 import { tmpdir } from "node:os";
@@ -826,6 +827,7 @@ describe("node:http", () => {
       }
     });
   });
+
   test("should not decompress gzip, issue#4397", async () => {
     const { promise, resolve } = Promise.withResolvers();
     request("https://bun.sh/", { headers: { "accept-encoding": "gzip" } }, res => {
@@ -837,6 +839,7 @@ describe("node:http", () => {
     const chunk = await promise;
     expect(chunk.toString()).not.toContain("<html");
   });
+
   test("test unix socket server", done => {
     const socketPath = `${tmpdir()}/bun-server-${Math.random().toString(32)}.sock`;
     const server = createServer((req, res) => {
@@ -856,6 +859,33 @@ describe("node:http", () => {
       try {
         expect(output.stdout.toString()).toStrictEqual("Bun\n");
         done();
+      } catch (err) {
+        done(err);
+      }
+    });
+  });
+
+  test("IncomingMessage.statusMessage is overridable", done => {
+    const server = createServer((req, res) => {
+      // From `got` library
+      const statusCode = res.statusCode;
+      res.statusMessage = http.STATUS_CODES[statusCode];
+      res.url = "any";
+      res.requestUrl = "any";
+      res.redirectUrls = "any";
+      res.request = "any";
+      res.isFromCache = "any";
+      res.ip = "any";
+      res.retryCount = "any";
+      res.ok = true;
+      res.end("success");
+    });
+    server.listen({ port: 0 }, async (_err, host, port) => {
+      try {
+        await fetch(`http://${host}:${port}`).then(res => {
+          expect(res.status).toBe(200);
+          done();
+        });
       } catch (err) {
         done(err);
       }
